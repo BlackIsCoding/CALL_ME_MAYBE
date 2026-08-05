@@ -3,45 +3,6 @@ os.environ["HF_HOME"] = "/home/akoudri/goinfre/.cache/huggingface"
 from llm_sdk import Small_LLM_Model
 import json
 
-
-
-# def get_vocab_str(qwen):
-
-#     vocab_list = []
-#     with open(qwen.get_path_to_vocab_file(), 'r') as f:
-#         vocab = json.load(f)
-#         for token_id, token in vocab.items():
-#             charachter = qwen.decode(token)
-#             if charachter == '\\"':
-#                 vocab_list.append(token)
-#                 continue
-#             if charachter == '\\':
-#                 vocab_list.append(token)
-#                 continue
-#             if charachter == "\\n":
-#                 continue
-#             if '"' in charachter or '}' in charachter:
-#                 continue
-#             elif "\\[" in charachter or "\\]" in charachter:
-#                 continue
-#             else:
-#                 vocab_list.append(token)
-#     return vocab_list
-
-
-def get_vocab_number(qwen):
-
-    vocab_list = []
-    with open(qwen.get_path_to_vocab_file(), 'r') as f:
-        vocab = json.load(f)
-        for token_id, token in vocab.items():
-            charachter = qwen.decode(token)
-            if charachter and all(ch.isdigit() for ch in charachter):
-                vocab_list.append(token)
-    return vocab_list
-
-
-
 def prompt_handle(qwen, prompt_encoded, user_request):
     prompt_part = '"prompt":'  + user_request + ','
     prompt_encoded.extend(qwen.encode(prompt_part).tolist()[0])
@@ -112,7 +73,7 @@ def param_boolean(qwen, prompt_encoded):
         return expected_output[1], True
 
 from numpy import argmax
-def param_str(qwen, prompt_encoded, user_request, tokens):
+def param_str(qwen, prompt_encoded, tokens):
 
     prompt_encoded.append(tokens["quote"])
 
@@ -242,7 +203,7 @@ def params(qwen, prompt_encoded, function, user_request):
                 prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
 
         elif param_type == "string":
-            value = param_str(qwen, prompt_encoded, user_request, tokens)
+            value = param_str(qwen, prompt_encoded, tokens)
             generated_params[param_name] = value
 
             if index < len(parameters) - 1:
@@ -251,7 +212,7 @@ def params(qwen, prompt_encoded, function, user_request):
                 prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
 
         elif param_type == "integer":
-            value = param_int(qwen, prompt_encoded, user_request, tokens)
+            value = param_int(qwen, prompt_encoded, tokens)
             generated_params[param_name] = value
 
             if index < len(parameters) - 1:
@@ -270,66 +231,6 @@ def params(qwen, prompt_encoded, function, user_request):
 
     return generated_params
 
-
-# def generate_json(qwen, functions, user_request):
-
-#     prompt = (
-#         "Generate a valid JSON object with exactly three keys: prompt, name (the chosen function), and parameters. "
-#         "You must choose the function whose description best matches the user's request. "
-#         f"Available functions: {functions} "
-#         f"User request: {user_request} "
-#         "Rules: "
-#         "- If the request says \"replace all numbers\", use regex \"[0-9]+\". "
-#         "- If the request says \"replace all vowels\", use regex \"[AEIOUaeiou]\". "
-#         "- If the request says \"replace the word 'X'\", use regex \"X\". "
-#         "- If the request says \"with NUMBERS\", replacement must be \"NUMBERS\". "
-#         "- If the request says \"with asterisks\", replacement must be \"*\". "
-#         "- If the request says \"with dog\", replacement must be \"dog\". "
-#         "Example output: "
-#         "{\"prompt\":\"Add 2 and 8\",\"name\":\"fn_add_numbers\",\"parameters\":{\"a\":2,\"b\":8}} "
-#         "Answer: {"
-#     )
-
-#     prompt_encoded = qwen.encode(prompt).tolist()[0]
-
-#     # Generate the "prompt" field
-#     prompt_handle(qwen, prompt_encoded, json.dumps(user_request))
-
-#     # Generate the function name
-#     function_tokens = function_name(qwen, prompt_encoded, functions)
-#     function_name_str = qwen.decode(function_tokens[:-1])
-
-#     # Find the corresponding function definition
-#     function = None
-#     for f in functions:
-#         if f["name"] == function_name_str:
-#             function = f
-#             break
-
-#     if function is None:
-#         raise ValueError(f"Unknown function selected: {function_name_str}")
-
-#     # Generate the parameters
-#     generated_params = params(qwen, prompt_encoded, function, user_request)
-
-#     return {
-#         "prompt": user_request,
-#         "name": function_name_str,
-#         "parameters": generated_params,
-#     }
-
-# def dump_all(qwen, functions, prompts, arguments):
-#     results = []
-#     if isinstance(prompts, dict):
-#         prompts = [prompts]
-#     for prompt in prompts:
-#         user_request = prompt["prompt"]
-
-#         generated = generate_json(qwen, functions, user_request)
-#         results.append(generated)
-
-#     with open(arguments.output, "w") as f:
-#         json.dump(results, f)
 
 def generate_json(qwen, functions, user_request, prompt_encoded):
 
@@ -367,33 +268,64 @@ def dump_all(qwen, functions, prompts, arguments):
         f"Available functions: {functions} "
         "Rules: "
         "- If the request says \"replace all numbers\", use regex \"[0-9]+\". "
-        "- If the request says \"replace all vowels\", use regex \"[AEIOUaeiou]\" with [] necessary. "
-        "- If the request says \"replace the word 'X'\", use regex \"X\". "
-        "- If the request says \"with NUMBERS\", replacement must be \"NUMBERS\". "
-        "- If the request says \"with asterisks\", replacement must be \"*\". "
-        "- If the request says \"with dog\", replacement must be \"dog\". "
+        # "- If the request says \"replace all vowels\", use regex \"[AEIOUaeiou]\" with [] necessary. "
+        # "- If the request says \"replace the word 'X'\", use regex \"X\". "
+        # "- If the request says \"with NUMBERS\", replacement must be \"NUMBERS\". "
+        # "- If the request says \"with asterisks\", replacement must be \"*\". "
+        # "- If the request says \"with dog\", replacement must be \"dog\". "
+        # "Example output: "
+        # "{\"prompt\":\"Add 2 and 8\",\"name\":\"fn_add_numbers\",\"parameters\":{\"a\":2,\"b\":8}} "
+        # "Example 2: "
+        # "{\"prompt\":\"Replace all numbers in 'Hello 34 I\\\"m 233 years old' with NUMBERS\","
+        # "\"name\":\"fn_substitute_string_with_regex\","
+        # "\"parameters\":{"
+        # "\"source_string\":\"Hello 34 I'm 233 years old\","
+        # "\"regex\":\"[0-9]+\","
+        # "\"replacement\":\"NUMBERS\""
+        # "}} "
+        # "Example 3: "
+        # "{\"prompt\":\"Replace all vowels in 'Programming is fun' with asterisks\","
+        # "\"name\":\"fn_substitute_string_with_regex\","
+        # "\"parameters\":{"
+        # "\"source_string\":\"Programming is fun\","
+        # "\"regex\":\"[AEIOUaeiou]\","
+        # "\"replacement\":\"*\""
+        # "}} "
+        # "Example 4:"
+        # "{\"name\":\"fn_substitute_string_with_regex\",\"parameters\":{\"source_string\":\"The cat sat on the mat with another cat\",\"regex\":\"cat\",\"replacement\":\"dog\"}}"
+        # "Answer: {"
         "Example output: "
-        "{\"prompt\":\"Add 2 and 8\",\"name\":\"fn_add_numbers\",\"parameters\":{\"a\":2,\"b\":8}} "
+        "{\"prompt\":\"Compute the sum of 15 and 27\",\"name\":\"fn_add_numbers\",\"parameters\":{\"a\":15,\"b\":27}} "
+
         "Example 2: "
-        "{\"prompt\":\"Replace all numbers in 'Hello 34 I\\\"m 233 years old' with NUMBERS\","
+        "{\"prompt\":\"Replace every sequence of digits in 'Order 512 costs 49 dollars' with <NUM>\","
         "\"name\":\"fn_substitute_string_with_regex\","
         "\"parameters\":{"
-        "\"source_string\":\"Hello 34 I'm 233 years old\","
+        "\"source_string\":\"Order 512 costs 49 dollars\","
         "\"regex\":\"[0-9]+\","
-        "\"replacement\":\"NUMBERS\""
+        "\"replacement\":\"<NUM>\""
         "}} "
+
         "Example 3: "
-        "{\"prompt\":\"Replace all vowels in 'Programming is fun' with asterisks\","
+        "{\"prompt\":\"Replace every vowel in 'Artificial Intelligence' with *\","
         "\"name\":\"fn_substitute_string_with_regex\","
         "\"parameters\":{"
-        "\"source_string\":\"Programming is fun\","
+        "\"source_string\":\"Artificial Intelligence\","
         "\"regex\":\"[AEIOUaeiou]\","
         "\"replacement\":\"*\""
         "}} "
-        "Example 4:"
-        "{\"name\":\"fn_substitute_string_with_regex\",\"parameters\":{\"source_string\":\"The cat sat on the mat with another cat\",\"regex\":\"cat\",\"replacement\":\"dog\"}}"
+
+        "Example 4: "
+        "{\"prompt\":\"Replace every occurrence of 'apple' with 'orange' in 'apple pie and apple juice'\","
+        "\"name\":\"fn_substitute_string_with_regex\","
+        "\"parameters\":{"
+        "\"source_string\":\"apple pie and apple juice\","
+        "\"regex\":\"apple\","
+        "\"replacement\":\"orange\""
+        "}} "
+
         "Answer: {"
-    )
+            )
 
     base_prompt_encoded = qwen.encode(prompt).tolist()[0]
 
