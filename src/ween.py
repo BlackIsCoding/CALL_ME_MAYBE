@@ -1,28 +1,32 @@
 import os
 os.environ["HF_HOME"] = "/home/akoudri/goinfre/.cache/huggingface"
 from llm_sdk import Small_LLM_Model
-from numpy import argmax
 import json
 
 
 
-def get_vocab_str(qwen):
+# def get_vocab_str(qwen):
 
-    vocab_list = []
-    with open(qwen.get_path_to_vocab_file(), 'r') as f:
-        vocab = json.load(f)
-        for token_id, token in vocab.items():
-            charachter = qwen.decode(token)
-            if charachter == '\\"':
-                vocab_list.append(token)
-                continue
-            if '"' in charachter or '}' in charachter:
-                continue
-            elif "\\[" in charachter or "\\]" in charachter:
-                continue
-            else:
-                vocab_list.append(token)
-    return vocab_list
+#     vocab_list = []
+#     with open(qwen.get_path_to_vocab_file(), 'r') as f:
+#         vocab = json.load(f)
+#         for token_id, token in vocab.items():
+#             charachter = qwen.decode(token)
+#             if charachter == '\\"':
+#                 vocab_list.append(token)
+#                 continue
+#             if charachter == '\\':
+#                 vocab_list.append(token)
+#                 continue
+#             if charachter == "\\n":
+#                 continue
+#             if '"' in charachter or '}' in charachter:
+#                 continue
+#             elif "\\[" in charachter or "\\]" in charachter:
+#                 continue
+#             else:
+#                 vocab_list.append(token)
+#     return vocab_list
 
 
 def get_vocab_number(qwen):
@@ -103,80 +107,96 @@ def param_boolean(qwen, prompt_encoded):
     logits = qwen.get_logits_from_input_ids(prompt_encoded)
 
     if logits[expected_output[0]] > logits[expected_output[1]]:
-        return expected_output[0]
+        return expected_output[0], False
     else:
-        return expected_output[1]
+        return expected_output[1], True
 
-
+from numpy import argmax
 def param_str(qwen, prompt_encoded, user_request, tokens):
 
     prompt_encoded.append(tokens["quote"])
-    allowed_tokens = get_vocab_str(qwen)
-    allowed_tokens.extend([tokens['quote']])
 
-    for _ in range(20):
+    value = ""
+
+    for _ in range(100):
         logits = qwen.get_logits_from_input_ids(prompt_encoded)
+        logits[tokens['start_quote']] = float('-inf')
+        best_token = argmax(logits)
+        print("best token ->", qwen.decode([best_token]))
+        token_str = qwen.decode([best_token])
 
-        best_score = float("-inf")
-        best_token = None
-        for token in allowed_tokens:
-            if logits[token] > best_score:
-                best_score = logits[token]
-                best_token = token
-
-        prompt_encoded.append(best_token)
-        if best_token == tokens['quote']:
+        if token_str.startswith('"'):
+            prompt_encoded.append(tokens["quote"])
             break
 
-def param_int(qwen, prompt_encoded, user_request, tokens):
-    int_vocab = get_vocab_number(qwen)
-    int_vocab.extend([tokens['comma'],tokens['end_curly'], tokens['minus']])
-
-    for _ in range(20):
-        logits = qwen.get_logits_from_input_ids(prompt_encoded)
-
-        best_score = float("-inf")
-        best_token = None
-        for token in int_vocab:
-            if logits[token] > best_score:
-                best_score = logits[token]
-                best_token = token
-        if best_token in (tokens['comma'], tokens['end_curly']):
-            break
         prompt_encoded.append(best_token)
+        value += token_str
 
-def param_float(qwen, prompt_encoded, tokens):
-    float_vocab = get_vocab_number(qwen)
-    float_vocab.extend([
-        tokens["dot"],
+    return value
+
+def param_int(qwen, prompt_encoded, tokens):
+    int_vocab = tokens['digits']
+    int_vocab.extend([
         tokens["minus"],
         tokens["comma"],
         tokens["end_curly"],
     ])
 
-    seen_dot = False
+    value = ""
 
     for _ in range(20):
         logits = qwen.get_logits_from_input_ids(prompt_encoded)
+        best_token = max(int_vocab, key=lambda t: logits[t])
 
-        best_score = float("-inf")
-        best_token = None
+        if best_token in (tokens["comma"], tokens["end_curly"]):
+            break
 
-        for token in float_vocab:
-            if logits[token] > best_score:
-                best_score = logits[token]
-                best_token = token
+        prompt_encoded.append(best_token)
+        value += qwen.decode([best_token])
 
+    return int(value)
+
+import re
+def param_float(qwen, prompt_encoded, tokens, user_request):
+    has_decimal = bool(re.search(r"-?\d+\.\d+", user_request))
+    if has_decimal:
+        float_vocab = [
+            *tokens["digits"],
+            tokens["minus"],
+            tokens["dot"],
+            tokens["comma"],
+            tokens["end_curly"],
+        ]
+    else:
+        float_vocab = [
+            *tokens["digits"],
+            tokens["minus"],
+            tokens["comma"],
+            tokens["end_curly"],
+        ]
+
+    dot_zero = qwen.encode(".0").tolist()[0]
+
+    seen_dot = False
+    value = ""
+
+    for _ in range(20):
+        logits = qwen.get_logits_from_input_ids(prompt_encoded)
+        best_token = max(float_vocab, key=lambda t: logits[t])
+        print("best token ->", qwen.decode([best_token]))
         if best_token == tokens["dot"]:
             seen_dot = True
 
         if best_token in (tokens["comma"], tokens["end_curly"]):
             if not seen_dot:
-                prompt_encoded.append(tokens["dot"])
-                prompt_encoded.append(qwen.encode("0").tolist()[0][0])
+                prompt_encoded.extend(dot_zero)
+                value += ".0"
             break
 
         prompt_encoded.append(best_token)
+        value += qwen.decode([best_token])
+
+    return float(value)
     
 
 
@@ -190,8 +210,13 @@ def params(qwen, prompt_encoded, function, user_request):
         "string_comma": qwen.encode('",').tolist()[0][0],
         "string_curly": qwen.encode('"}').tolist()[0][0],
         'minus': qwen.encode('-').tolist()[0][0],
-        'dot': qwen.encode('.').tolist()[0][0]
+        'dot': qwen.encode('.').tolist()[0][0],
+        'slash_quote': qwen.encode('\\"').tolist()[0][0],
+        'digits': [qwen.encode(str(i)).tolist()[0][0] for i in range(10)],
+        'start_quote': qwen.encode('*"').tolist()[0][0]
     }
+
+    generated_params = {}
 
     params = '"parameters": {"'
     prompt_encoded.extend(qwen.encode(params).tolist()[0])
@@ -207,37 +232,190 @@ def params(qwen, prompt_encoded, function, user_request):
         param_type = get_param_type(param_name, function)
 
         if param_type == "boolean":
-            prompt_encoded.append(param_boolean(qwen, prompt_encoded))
+            token, value = param_boolean(qwen, prompt_encoded)
+            generated_params[param_name] = value
+            prompt_encoded.append(token)
 
             if index < len(parameters) - 1:
                 prompt_encoded.append(tokens["comma"])
             else:
                 prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
-                return
 
-        elif param_type == 'string':
-            param_str(qwen, prompt_encoded, user_request, tokens)
+        elif param_type == "string":
+            value = param_str(qwen, prompt_encoded, user_request, tokens)
+            generated_params[param_name] = value
+
             if index < len(parameters) - 1:
-                prompt_encoded.extend([tokens["comma"]])
+                prompt_encoded.append(tokens["string_comma"])
             else:
-                prompt_encoded.append(tokens['end_curly'])
-                prompt_encoded.append(tokens['end_curly'])
-                return
+                prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
 
         elif param_type == "integer":
-            param_int(qwen, prompt_encoded, user_request, tokens)
+            value = param_int(qwen, prompt_encoded, user_request, tokens)
+            generated_params[param_name] = value
 
             if index < len(parameters) - 1:
                 prompt_encoded.append(tokens["comma"])
             else:
-                prompt_encoded.append(tokens["end_curly"])
-                prompt_encoded.append(tokens["end_curly"])
+                prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
 
-        elif param_type == "number" or param_type == 'float':
-            param_float(qwen, prompt_encoded, tokens)
+        elif param_type == "number" or param_type == "float":
+            value = param_float(qwen, prompt_encoded, tokens, user_request)
+            generated_params[param_name] = value
 
             if index < len(parameters) - 1:
                 prompt_encoded.append(tokens["comma"])
             else:
-                prompt_encoded.append(tokens["end_curly"])
-                prompt_encoded.append(tokens["end_curly"]) 
+                prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
+
+    return generated_params
+
+
+# def generate_json(qwen, functions, user_request):
+
+#     prompt = (
+#         "Generate a valid JSON object with exactly three keys: prompt, name (the chosen function), and parameters. "
+#         "You must choose the function whose description best matches the user's request. "
+#         f"Available functions: {functions} "
+#         f"User request: {user_request} "
+#         "Rules: "
+#         "- If the request says \"replace all numbers\", use regex \"[0-9]+\". "
+#         "- If the request says \"replace all vowels\", use regex \"[AEIOUaeiou]\". "
+#         "- If the request says \"replace the word 'X'\", use regex \"X\". "
+#         "- If the request says \"with NUMBERS\", replacement must be \"NUMBERS\". "
+#         "- If the request says \"with asterisks\", replacement must be \"*\". "
+#         "- If the request says \"with dog\", replacement must be \"dog\". "
+#         "Example output: "
+#         "{\"prompt\":\"Add 2 and 8\",\"name\":\"fn_add_numbers\",\"parameters\":{\"a\":2,\"b\":8}} "
+#         "Answer: {"
+#     )
+
+#     prompt_encoded = qwen.encode(prompt).tolist()[0]
+
+#     # Generate the "prompt" field
+#     prompt_handle(qwen, prompt_encoded, json.dumps(user_request))
+
+#     # Generate the function name
+#     function_tokens = function_name(qwen, prompt_encoded, functions)
+#     function_name_str = qwen.decode(function_tokens[:-1])
+
+#     # Find the corresponding function definition
+#     function = None
+#     for f in functions:
+#         if f["name"] == function_name_str:
+#             function = f
+#             break
+
+#     if function is None:
+#         raise ValueError(f"Unknown function selected: {function_name_str}")
+
+#     # Generate the parameters
+#     generated_params = params(qwen, prompt_encoded, function, user_request)
+
+#     return {
+#         "prompt": user_request,
+#         "name": function_name_str,
+#         "parameters": generated_params,
+#     }
+
+# def dump_all(qwen, functions, prompts, arguments):
+#     results = []
+#     if isinstance(prompts, dict):
+#         prompts = [prompts]
+#     for prompt in prompts:
+#         user_request = prompt["prompt"]
+
+#         generated = generate_json(qwen, functions, user_request)
+#         results.append(generated)
+
+#     with open(arguments.output, "w") as f:
+#         json.dump(results, f)
+
+def generate_json(qwen, functions, user_request, prompt_encoded):
+
+    # Generate the "prompt" field
+    prompt_handle(qwen, prompt_encoded, json.dumps(user_request))
+
+    # Generate the function name
+    function_tokens = function_name(qwen, prompt_encoded, functions)
+    function_name_str = qwen.decode(function_tokens[:-1])
+
+    # Find the corresponding function definition
+    function = None
+    for f in functions:
+        if f["name"] == function_name_str:
+            function = f
+            break
+
+    if function is None:
+        raise ValueError(f"Unknown function selected: {function_name_str}")
+
+    # Generate the parameters
+    generated_params = params(qwen, prompt_encoded, function, user_request)
+
+    return {
+        "prompt": user_request,
+        "name": function_name_str,
+        "parameters": generated_params,
+    }
+
+def dump_all(qwen, functions, prompts, arguments):
+
+    prompt = (
+        "Generate a valid JSON object with exactly three keys: prompt, name (the chosen function), and parameters. "
+        "You must choose the function whose description best matches the user's request. "
+        f"Available functions: {functions} "
+        "Rules: "
+        "- If the request says \"replace all numbers\", use regex \"[0-9]+\". "
+        "- If the request says \"replace all vowels\", use regex \"[AEIOUaeiou]\" with [] necessary. "
+        "- If the request says \"replace the word 'X'\", use regex \"X\". "
+        "- If the request says \"with NUMBERS\", replacement must be \"NUMBERS\". "
+        "- If the request says \"with asterisks\", replacement must be \"*\". "
+        "- If the request says \"with dog\", replacement must be \"dog\". "
+        "Example output: "
+        "{\"prompt\":\"Add 2 and 8\",\"name\":\"fn_add_numbers\",\"parameters\":{\"a\":2,\"b\":8}} "
+        "Example 2: "
+        "{\"prompt\":\"Replace all numbers in 'Hello 34 I\\\"m 233 years old' with NUMBERS\","
+        "\"name\":\"fn_substitute_string_with_regex\","
+        "\"parameters\":{"
+        "\"source_string\":\"Hello 34 I'm 233 years old\","
+        "\"regex\":\"[0-9]+\","
+        "\"replacement\":\"NUMBERS\""
+        "}} "
+        "Example 3: "
+        "{\"prompt\":\"Replace all vowels in 'Programming is fun' with asterisks\","
+        "\"name\":\"fn_substitute_string_with_regex\","
+        "\"parameters\":{"
+        "\"source_string\":\"Programming is fun\","
+        "\"regex\":\"[AEIOUaeiou]\","
+        "\"replacement\":\"*\""
+        "}} "
+        "Example 4:"
+        "{\"name\":\"fn_substitute_string_with_regex\",\"parameters\":{\"source_string\":\"The cat sat on the mat with another cat\",\"regex\":\"cat\",\"replacement\":\"dog\"}}"
+        "Answer: {"
+    )
+
+    base_prompt_encoded = qwen.encode(prompt).tolist()[0]
+
+    if isinstance(prompts, dict):
+        prompts = [prompts]
+
+    results = []
+
+    for item in prompts:
+        user_request = item["prompt"]
+
+        # Every generation starts from the same base context
+        prompt_encoded = base_prompt_encoded.copy()
+
+        generated = generate_json(
+            qwen,
+            functions,
+            user_request,
+            prompt_encoded
+        )
+
+        results.append(generated)
+
+    with open(arguments.output, "w") as f:
+        json.dump(results, f, indent=4)

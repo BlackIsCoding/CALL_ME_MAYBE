@@ -5,6 +5,9 @@
     "parameters": {
       "a": {
         "type": "number"
+      },
+      "b": {
+        "type": "number"
       }
     },
     "returns": {
@@ -64,45 +67,5 @@
     "returns": {
       "type": "string"
     }
-  },
-  {
-  "name": "fn_set_dark_mode",
-  "description": "Turns the application's dark theme on or off. Do not use for notifications or other preferences.",
-  "parameters": {
-    "enabled": {
-      "type": "boolean"
-    }
-  },
-  "returns": {
-    "type": "string"
   }
-},
-{
-  "name": "fn_toggle_settings",
-  "description": "Changes notification and auto-save preferences. Use this function whenever the request mentions notifications or auto-save.",
-  "parameters": {
-    "notifications": {
-      "type": "boolean"
-    },
-    "auto_save": {
-      "type": "boolean"
-    }
-  },
-  "returns": {
-    "type": "boolean"
-  }
-},
-{
-  "name": "fn_send_email",
-  "description": "Send an email to a user. Example: \"hello\"",
-  "parameters": {
-    "body": {
-      "type": "string"
-    },
-    "send_to": {"type": "string"}
-  },
-    "returns": {
-    "type": "boolean"
-  }
-}
 ]

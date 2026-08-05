@@ -118,6 +118,8 @@ class Parsing(BaseModel):
 
         if not isinstance(parameters, dict):
             return False
+        if not parameters:
+            return False
 
         for name, parameter in parameters.items():
             if not self.validate_param(name, parameter):
