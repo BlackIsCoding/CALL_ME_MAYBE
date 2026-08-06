@@ -1,39 +1,62 @@
 try:
-    import argparse, json
+    import argparse
+    import json
+    from typing import Dict, List, Set, Tuple, Any
     from pydantic import ValidationError
-    from .parsing import Parsing
-    from llm_sdk import Small_LLM_Model
+    from pydantic_core import ErrorDetails
+    from src.parsing import Parsing
+    from llm_sdk import Small_LLM_Model  # type: ignore
 except (ModuleNotFoundError, NameError, ImportError) as e:
     print("An error occured during loading the modules !", e)
     exit(1)
 except Exception as e:
+    import traceback
     print("An error occured during loading the modules !", e)
+    traceback.print_exc()
     exit(1)
 
-def error_on_duplicates(pairs):
-    seen = set()
+
+def error_on_duplicates(pairs: List[Tuple[str, object]]) -> Dict:
+    """Detect duplicate keys while loading a JSON object.
+
+    Args:
+        pairs: A List of (key, value) tuples produced by
+            ``json.load`` via ``object_pairs_hook``.
+
+    Returns:
+        A dictionary containing the parsed key-value pairs.
+
+    Raises:
+        ValueError: If a duplicate key is found.
+    """
+    seen: Set = set()
     for key, _ in pairs:
         if key in seen:
             raise ValueError(f"Duplicate key detected: {key}")
         seen.add(key)
     return dict(pairs)
 
+
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--functions_definition", required=True, type=str, help="Enter the path of the functions definitions file")
-    parser.add_argument(
+    arg_parser: argparse.ArgumentParser = argparse.ArgumentParser()
+    arg_parser.add_argument(
+        "--functions_definition",
+        required=True, type=str,
+        help="Enter the path of the functions definitions file")
+    arg_parser.add_argument(
         "--input", required=True, help="Enter the path of the prompts file")
-    parser.add_argument(
+    arg_parser.add_argument(
         "--output", required=True, help="Enter the path of the output file")
-    arguments = parser.parse_args()
+    arguments = arg_parser.parse_args()
     try:
         with open(arguments.input, 'r') as f:
-            prompts = json.load(f, object_pairs_hook=error_on_duplicates)
+            prompts: List[Dict] = json.load(
+                f, object_pairs_hook=error_on_duplicates)
 
         with open(arguments.functions_definition, 'r') as f:
-            functions = json.load(f, object_pairs_hook=error_on_duplicates)
+            functions: Any = json.load(
+                f, object_pairs_hook=error_on_duplicates)
 
         with open(arguments.output, 'w') as f:
             pass
@@ -51,45 +74,43 @@ if __name__ == "__main__":
     except Exception:
         print("Error happened !")
     else:
-
         try:
-
-            parser = Parsing(
-            functions=functions,
-            prompts=prompts
-        )
+            parser: Parsing = Parsing(
+                functions=functions,
+                prompts=prompts)
 
             parser.parse_prompts()
-            functions = parser.parse_functions_schema()
+            new_functions: Any = parser.parse_functions_schema()
             parser.validate_functions()
 
         except ValidationError as e:
-            err = e.errors()[0]
+            err: ErrorDetails = e.errors()[0]
             print(f"Pydantic validation error:\n{err['msg']}")
             exit(1)
 
         except ValueError as e:
             print(f"Parsing error: {e}")
             exit(1)
-        
+
         else:
-                        
+
             try:
-                qwen = Small_LLM_Model()
-                tokens = {
+                qwen: Small_LLM_Model = Small_LLM_Model()
+                tokens: Dict[str, (int | List)] = {
                     "quote_points": qwen.encode('":').tolist()[0],
                     "comma": qwen.encode(', ').tolist()[0][0],
                     "end_curly": qwen.encode('}').tolist()[0][0],
                     "quote": qwen.encode('"').tolist()[0][0],
                     "string_comma": qwen.encode('",').tolist()[0][0],
                     "string_curly": qwen.encode('"}').tolist()[0][0]}
-            except Exception:
-                print("Making a Model object failed !")
+            except Exception as e:
+                import traceback
+                print("Making a Model object failed !", e)
+                traceback.print_exc()
                 exit(1)
             else:
-                from .ween import dump_all
+                from src.ween import dump_all
                 from time import perf_counter
-                start = perf_counter()
-                dump_all(qwen, functions, prompts, arguments)
+                start: float = perf_counter()
+                dump_all(qwen, new_functions, prompts, arguments)
                 print("It took :", perf_counter() - start)
-            

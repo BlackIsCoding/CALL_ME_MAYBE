@@ -6,7 +6,7 @@
 
 The main challenge of the project is ensuring that every generated response is both syntactically valid and compliant with the expected schema. To achieve this, the project implements **constrained decoding**, restricting the model's token choices at each generation step so that only valid JSON structures, function names, parameter names, and parameter types can be produced.
 
-Given a set of available function definitions and a list of user prompts, the program selects the most appropriate function using the LLM, extracts the required arguments, and generates a guaranteed-valid JSON output that can be safely consumed by external applications.
+Given a set of available function definitions and a List of user prompts, the program selects the most appropriate function using the LLM, extracts the required arguments, and generates a guaranteed-valid JSON output that can be safely consumed by external applications.
 
 This project demonstrates how structural constraints can significantly improve the reliability of small language models, allowing them to perform accurate function calling without relying solely on prompt engineering.
 
