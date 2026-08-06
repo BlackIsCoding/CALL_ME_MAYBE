@@ -15,7 +15,7 @@ class Jsontypes(str, Enum):
 
 class Parsing(BaseModel):
     functions: List[Dict[str, str | dict]] | Dict[str , str | dict]
-    prompts: List[Dict[str, str]] | dict[str , str]
+    prompts:  dict[str , str] | List[Dict[str, str]] 
 
 
     def parse_prompts(self):
@@ -44,13 +44,22 @@ class Parsing(BaseModel):
             prompt[original] = value
             if not value:
                 raise ValueError("Empty Prompt detected")
+            
+    @staticmethod
+    def validate_unique_function_names(functions):
+        seen = set()
+
+        for function in functions:
+            name = function['name']
+            if name in seen:
+                return True
+            seen.add(name)
 
     def parse_functions_schema(self):
 
         functions = self.functions
         if not functions:
             raise ValueError("Empty functions file !")
-
         if not isinstance(functions, list):
             functions = [functions]
     
@@ -74,6 +83,8 @@ class Parsing(BaseModel):
                 raise ValueError(f"Invalid schema in function #{i + 1}")
 
             functions[i] = new_function
+        self.functions = functions
+        return self.functions
 
     def validate_name(self, name):
         name = name.strip()
@@ -88,7 +99,19 @@ class Parsing(BaseModel):
             return False
         return True
 
-    def validate_param(self, name, parameter):
+    def validate_param(self, name, parameter, function):
+
+        new_parameter = {}
+
+        for key, value in parameter.items():
+            try:
+                new_parameter[key.strip().lower()] = value.strip().lower()
+            except Exception:
+                return False
+        parameter = new_parameter
+        # function['parameters'] = parameter
+
+
         name = name.strip()
 
         if not name:
@@ -114,15 +137,13 @@ class Parsing(BaseModel):
         return True
 
 
-    def validate_parameters(self, parameters):
+    def validate_parameters(self, parameters, function):
 
         if not isinstance(parameters, dict):
             return False
-        if not parameters:
-            return False
 
         for name, parameter in parameters.items():
-            if not self.validate_param(name, parameter):
+            if not self.validate_param(name, parameter, function):
                 return False
 
         return True
@@ -144,12 +165,14 @@ class Parsing(BaseModel):
                     f"Invalid description in function '{function['name']}'"
                 )
 
-            if not self.validate_parameters(function["parameters"]):
+            if not self.validate_parameters(function["parameters"], function):
                 raise ValueError(
                     f"Invalid parameters in function '{function['name']}'"
                 )
-
-            returns = function["returns"]
+            try:
+                returns = {k.lower(): v.lower().strip() for k, v in function["returns"].items()}
+            except Exception:
+                raise ValueError("An Error occured in the 'return' area !")
 
             if not isinstance(returns, dict):
                 raise ValueError(
@@ -170,6 +193,8 @@ class Parsing(BaseModel):
                 returns['type'] = returns['type'].strip()
                 Jsontypes(returns["type"])
             except ValueError:
+                if returns['type'] == 'none':
+                    return True
                 raise ValueError(
                     f"Invalid return type in function '{function['name']}'"
                 )

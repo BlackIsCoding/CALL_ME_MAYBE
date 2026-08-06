@@ -3,6 +3,7 @@ os.environ["HF_HOME"] = "/home/akoudri/goinfre/.cache/huggingface"
 from llm_sdk import Small_LLM_Model
 import json
 
+
 def prompt_handle(qwen, prompt_encoded, user_request):
     prompt_part = '"prompt":'  + user_request + ','
     prompt_encoded.extend(qwen.encode(prompt_part).tolist()[0])
@@ -59,7 +60,7 @@ def function_name(qwen, prompt_encoded, functions):
 
 
 def get_param_type(param, function):
-    return function["parameters"][param]['type']
+    return function["parameters"][param]['type'].strip().lower()
 
 
 def param_boolean(qwen, prompt_encoded):
@@ -79,7 +80,7 @@ def param_str(qwen, prompt_encoded, tokens):
 
     value = ""
 
-    for _ in range(100):
+    for _ in range(30):
         logits = qwen.get_logits_from_input_ids(prompt_encoded)
         logits[tokens['start_quote']] = float('-inf')
         best_token = argmax(logits)
@@ -105,7 +106,7 @@ def param_int(qwen, prompt_encoded, tokens):
 
     value = ""
 
-    for _ in range(20):
+    for _ in range(30):
         logits = qwen.get_logits_from_input_ids(prompt_encoded)
         best_token = max(int_vocab, key=lambda t: logits[t])
 
@@ -141,7 +142,7 @@ def param_float(qwen, prompt_encoded, tokens, user_request):
     seen_dot = False
     value = ""
 
-    for _ in range(20):
+    for _ in range(30):
         logits = qwen.get_logits_from_input_ids(prompt_encoded)
         best_token = max(float_vocab, key=lambda t: logits[t])
         print("best token ->", qwen.decode([best_token]))
@@ -159,9 +160,17 @@ def param_float(qwen, prompt_encoded, tokens, user_request):
 
     return float(value)
     
-
+def check_params_exist(function):
+    if not function['parameters']:
+        return False
+    return True
 
 def params(qwen, prompt_encoded, function, user_request):
+
+    if not check_params_exist(function):
+        params = '"parameters": {}'
+        prompt_encoded.extend(qwen.encode(params).tolist()[0])
+        return False
 
     tokens = {
         "quote_points": qwen.encode('":').tolist()[0],
@@ -253,6 +262,8 @@ def generate_json(qwen, functions, user_request, prompt_encoded):
 
     # Generate the parameters
     generated_params = params(qwen, prompt_encoded, function, user_request)
+    if not generated_params:
+        generated_params = {}
 
     return {
         "prompt": user_request,
@@ -268,32 +279,6 @@ def dump_all(qwen, functions, prompts, arguments):
         f"Available functions: {functions} "
         "Rules: "
         "- If the request says \"replace all numbers\", use regex \"[0-9]+\". "
-        # "- If the request says \"replace all vowels\", use regex \"[AEIOUaeiou]\" with [] necessary. "
-        # "- If the request says \"replace the word 'X'\", use regex \"X\". "
-        # "- If the request says \"with NUMBERS\", replacement must be \"NUMBERS\". "
-        # "- If the request says \"with asterisks\", replacement must be \"*\". "
-        # "- If the request says \"with dog\", replacement must be \"dog\". "
-        # "Example output: "
-        # "{\"prompt\":\"Add 2 and 8\",\"name\":\"fn_add_numbers\",\"parameters\":{\"a\":2,\"b\":8}} "
-        # "Example 2: "
-        # "{\"prompt\":\"Replace all numbers in 'Hello 34 I\\\"m 233 years old' with NUMBERS\","
-        # "\"name\":\"fn_substitute_string_with_regex\","
-        # "\"parameters\":{"
-        # "\"source_string\":\"Hello 34 I'm 233 years old\","
-        # "\"regex\":\"[0-9]+\","
-        # "\"replacement\":\"NUMBERS\""
-        # "}} "
-        # "Example 3: "
-        # "{\"prompt\":\"Replace all vowels in 'Programming is fun' with asterisks\","
-        # "\"name\":\"fn_substitute_string_with_regex\","
-        # "\"parameters\":{"
-        # "\"source_string\":\"Programming is fun\","
-        # "\"regex\":\"[AEIOUaeiou]\","
-        # "\"replacement\":\"*\""
-        # "}} "
-        # "Example 4:"
-        # "{\"name\":\"fn_substitute_string_with_regex\",\"parameters\":{\"source_string\":\"The cat sat on the mat with another cat\",\"regex\":\"cat\",\"replacement\":\"dog\"}}"
-        # "Answer: {"
         "Example output: "
         "{\"prompt\":\"Compute the sum of 15 and 27\",\"name\":\"fn_add_numbers\",\"parameters\":{\"a\":15,\"b\":27}} "
 
@@ -331,11 +316,13 @@ def dump_all(qwen, functions, prompts, arguments):
 
     if isinstance(prompts, dict):
         prompts = [prompts]
+    if isinstance(functions, dict):
+        functions = [functions]
 
     results = []
-
     for item in prompts:
-        user_request = item["prompt"]
+        key = list(item.keys())[0]
+        user_request = item[key]
 
         # Every generation starts from the same base context
         prompt_encoded = base_prompt_encoded.copy()

@@ -10,6 +10,14 @@ except Exception as e:
     print("An error occured during loading the modules !", e)
     exit(1)
 
+def error_on_duplicates(pairs):
+    seen = set()
+    for key, _ in pairs:
+        if key in seen:
+            raise ValueError(f"Duplicate key detected: {key}")
+        seen.add(key)
+    return dict(pairs)
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -22,10 +30,10 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
     try:
         with open(arguments.input, 'r') as f:
-            prompts = json.load(f)
+            prompts = json.load(f, object_pairs_hook=error_on_duplicates)
 
         with open(arguments.functions_definition, 'r') as f:
-            functions = json.load(f)
+            functions = json.load(f, object_pairs_hook=error_on_duplicates)
 
         with open(arguments.output, 'w') as f:
             pass
@@ -38,6 +46,8 @@ if __name__ == "__main__":
         print("The path provided leads to a directory !")
     except json.JSONDecodeError:
         print("The .json file doesn't respect the json structure")
+    except ValueError:
+        print("Error happened due to duplicate keys")
     except Exception:
         print("Error happened !")
     else:
@@ -50,7 +60,7 @@ if __name__ == "__main__":
         )
 
             parser.parse_prompts()
-            parser.parse_functions_schema()
+            functions = parser.parse_functions_schema()
             parser.validate_functions()
 
         except ValidationError as e:
