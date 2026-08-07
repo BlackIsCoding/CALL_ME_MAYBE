@@ -59,9 +59,7 @@ def prompt_handle(
         None
     """
     prompt_part: str = '"prompt":' + user_request + ","
-    encoded_part: List[int] = cast(
-        List[int], qwen.encode(prompt_part).tolist()[0]
-    )
+    encoded_part: List[int] = [int(x) for x in qwen.encode(prompt_part)[0]]
     prompt_encoded.extend(encoded_part)
 
 
@@ -84,14 +82,13 @@ def function_name(
         ValueError: Re-raises implicitly internally if matching fails.
     """
     function_name_str: str = '"name":"'
-    prompt_encoded.extend(
-        cast(List[int], qwen.encode(function_name_str).tolist()[0])
-    )
+    fn_tokens: List[int] = [int(x) for x in qwen.encode(function_name_str)[0]]
+    prompt_encoded.extend(fn_tokens)
     allowed_functions: List[str] = [f["name"] for f in functions]
     enfunctions_List: List[List[int]] = []
 
     for f in allowed_functions:
-        encoded: List[int] = cast(List[int], qwen.encode(f).tolist()[0])
+        encoded: List[int] = [int(x) for x in qwen.encode(f)[0]]
         encoded.append(497)
         if encoded not in enfunctions_List:
             enfunctions_List.append(encoded)
@@ -172,9 +169,7 @@ def param_boolean(
         tuple[int, bool]: Token ID and the respective boolean value.
     """
     expected_strings: List[str] = ["false", "true"]
-    expected_tokens: List[int] = [
-        cast(int, qwen.encode(e).tolist()[0][0]) for e in expected_strings
-    ]
+    expected_tokens: List[int] = [[int(x) for x in qwen.encode(e)[0]][0] for e in expected_strings]
     logits: List[float] = cast(
         List[float], qwen.get_logits_from_input_ids(prompt_encoded)
     )
@@ -297,7 +292,7 @@ def param_float(
             tokens["end_curly"],
         ]
 
-    dot_zero: List[int] = cast(List[int], qwen.encode(".0").tolist()[0])
+    dot_zero: List[int] = [int(x) for x in qwen.encode(".0")[0]]
 
     seen_dot: bool = False
     value: str = ""
@@ -359,42 +354,35 @@ def params(
     """
     if not check_params_exist(function):
         params_str: str = '"parameters": {}'
-        prompt_encoded.extend(
-            cast(List[int], qwen.encode(params_str).tolist()[0])
-        )
+        prompt_encoded.extend([int(x) for x in qwen.encode(params_str)[0]])
         return False
 
     tokens: TokenDict = {
-        "quote_points": cast(List[int], qwen.encode('":').tolist()[0]),
-        "comma": cast(int, qwen.encode(", ").tolist()[0][0]),
-        "end_curly": cast(int, qwen.encode("}").tolist()[0][0]),
-        "quote": cast(int, qwen.encode('"').tolist()[0][0]),
-        "string_comma": cast(int, qwen.encode('",').tolist()[0][0]),
-        "string_curly": cast(int, qwen.encode('"}').tolist()[0][0]),
-        "minus": cast(int, qwen.encode("-").tolist()[0][0]),
-        "dot": cast(int, qwen.encode(".").tolist()[0][0]),
-        "slash_quote": cast(int, qwen.encode('\\"').tolist()[0][0]),
-        "digits": [
-            cast(int, qwen.encode(str(i)).tolist()[0][0]) for i in range(10)
-        ],
-        "start_quote": cast(int, qwen.encode('*"').tolist()[0][0]),
+        "quote_points": [int(x) for x in qwen.encode('":')[0]],
+        "comma": [int(x) for x in qwen.encode(', ')[0]][0],
+        "end_curly": [int(x) for x in qwen.encode('}')[0]][0],
+        "quote": [int(x) for x in qwen.encode('"')[0]][0],
+        "string_comma": [int(x) for x in qwen.encode('",')[0]][0],
+        "string_curly": [int(x) for x in qwen.encode('"}')[0]][0],
+        "minus": [int(x) for x in qwen.encode('-')[0]][0],
+        "dot": [int(x) for x in qwen.encode('.')[0]][0],
+        "slash_quote": [int(x) for x in qwen.encode('\\"')[0]][0],
+        "digits": [ [int(x) for x in qwen.encode(str(i))[0]][0] for i in range(10) ],
+        "start_quote": [int(x) for x in qwen.encode('*"')[0]][0],
     }
 
     generated_params: dict[str, Any] = {}
 
     params_prefix: str = '"parameters": {"'
-    prompt_encoded.extend(
-        cast(List[int], qwen.encode(params_prefix).tolist()[0])
-    )
+    prompt_encoded.extend([int(x) for x in qwen.encode(params_prefix)[0]])
 
     parameters: List[str] = list(function["parameters"].keys())
     for index, param_name in enumerate(parameters):
         if index != 0:
             prompt_encoded.append(tokens["quote"])
 
-        prompt_encoded.extend(
-            cast(List[int], qwen.encode(param_name).tolist()[0])
-        )
+        param_tokens: List[int] = [int(x) for x in qwen.encode(param_name)[0]]
+        prompt_encoded.extend(param_tokens)
         prompt_encoded.extend(tokens["quote_points"])
 
         param_type: str = get_param_type(param_name, function)
@@ -562,9 +550,7 @@ def dump_all(
         "Answer: {"
     )
 
-    base_prompt_encoded: List[int] = cast(
-        List[int], qwen.encode(prompt).tolist()[0]
-    )
+    base_prompt_encoded: List[int] = [int(x) for x in qwen.encode(prompt)[0]]
 
     prompts_List: List[dict[str, str]] = (
         [prompts] if isinstance(prompts, dict) else prompts

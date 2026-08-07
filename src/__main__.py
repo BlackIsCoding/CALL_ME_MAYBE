@@ -10,9 +10,7 @@ except (ModuleNotFoundError, NameError, ImportError) as e:
     print("An error occured during loading the modules !", e)
     exit(1)
 except Exception as e:
-    import traceback
     print("An error occured during loading the modules !", e)
-    traceback.print_exc()
     exit(1)
 
 
@@ -97,20 +95,18 @@ if __name__ == "__main__":
             try:
                 qwen: Small_LLM_Model = Small_LLM_Model()
                 tokens: Dict[str, (int | List)] = {
-                    "quote_points": qwen.encode('":').tolist()[0],
-                    "comma": qwen.encode(', ').tolist()[0][0],
-                    "end_curly": qwen.encode('}').tolist()[0][0],
-                    "quote": qwen.encode('"').tolist()[0][0],
-                    "string_comma": qwen.encode('",').tolist()[0][0],
-                    "string_curly": qwen.encode('"}').tolist()[0][0]}
+                    "quote_points": [int(x) for x in qwen.encode('":')[0]],
+                    "comma": [int(x) for x in qwen.encode(', ')[0]][0],
+                    "end_curly": [int(x) for x in qwen.encode('}')[0]][0],
+                    "quote": [int(x) for x in qwen.encode('"')[0]][0],
+                    "string_comma": [int(x) for x in qwen.encode('",')[0]][0],
+                    "string_curly": [int(x) for x in qwen.encode('"}')[0]][0]}
             except Exception as e:
-                import traceback
                 print("Making a Model object failed !", e)
-                traceback.print_exc()
                 exit(1)
             else:
                 from src.ween import dump_all
                 from time import perf_counter
                 start: float = perf_counter()
                 dump_all(qwen, new_functions, prompts, arguments)
-                print("It took :", perf_counter() - start)
+                print("It took :", perf_counter() - start, " seconds !")
