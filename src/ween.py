@@ -138,7 +138,7 @@ def param_str(
     prompt_encoded.append(tokens["quote"])  # opening quote
     value: str = ""
 
-    for _ in range(30):
+    for _ in range(20):
         logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
         # avoid selecting the opening quote token again
         if (
@@ -172,7 +172,7 @@ def param_int(
 
     value: str = ""
 
-    for _ in range(30):
+    for _ in range(20):
         logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
         best_token: int = max(
             int_vocab,
@@ -224,7 +224,7 @@ def param_float(
     seen_dot: bool = False
     value: str = ""
 
-    for _ in range(30):
+    for _ in range(20):
         logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
         best_token: int = max(
             float_vocab,
