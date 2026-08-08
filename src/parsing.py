@@ -155,9 +155,7 @@ class Parsing(BaseModel):
 
             normalized_functions.append(new_function)
 
-        self.functions = cast(
-            List[dict[str, str | dict[str, Any]]], normalized_functions
-        )
+        self.functions = normalized_functions
 
         return normalized_functions
 
