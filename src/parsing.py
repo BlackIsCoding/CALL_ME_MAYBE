@@ -27,13 +27,7 @@ class ParameterDict(TypedDict):
     type: str
 
 
-class FunctionDict(TypedDict):
-    """Normalized shape of a single function definition."""
-    name: str
-    description: str
-    parameters: dict[str, Any]
-    returns: dict[str, str]
-
+# FunctionDict TypedDict removed; plain dict annotations are used below.
 
 class Parsing(BaseModel):
     """Validate and parse function definitions and user prompts."""
@@ -111,7 +105,7 @@ class Parsing(BaseModel):
 
         return False
 
-    def parse_functions_schema(self) -> List[FunctionDict]:
+    def parse_functions_schema(self) -> List[dict[str, str | dict[str, Any]]]:
         """Normalize and validate function schema keys.
 
         Returns:
@@ -146,7 +140,7 @@ class Parsing(BaseModel):
             "returns"
         }
 
-        normalized_functions: List[FunctionDict] = []
+        normalized_functions: List[dict[str, str | dict[str, Any]]] = []
 
         for i, function in enumerate(function_List):
 
@@ -173,7 +167,7 @@ class Parsing(BaseModel):
                     f"Invalid schema in function #{i + 1}"
                 )
 
-            normalized_functions.append(cast(FunctionDict, new_function))
+            normalized_functions.append(new_function)
 
         self.functions = cast(
             List[dict[str, str | dict[str, Any]]], normalized_functions
