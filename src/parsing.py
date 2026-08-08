@@ -1,4 +1,4 @@
-from typing import Any, TypedDict, cast, List
+from typing import Any, cast, List
 from enum import Enum
 from pydantic import BaseModel
 
@@ -111,10 +111,13 @@ class Parsing(BaseModel):
 
         function_List: List[dict[str, str | dict[str, Any]]]
 
-        if not isinstance(functions, List):
+        # Correct runtime type checks: compare against builtin types
+        if isinstance(functions, dict):
             function_List = [functions]
-        else:
+        elif isinstance(functions, list):
             function_List = functions
+        else:
+            raise TypeError("Invalid type for 'functions' field")
 
         allowed_keys: set[str] = {
             "name",
@@ -291,10 +294,13 @@ class Parsing(BaseModel):
 
         function_List: List[dict[str, str | dict[str, Any]]]
 
-        if not isinstance(functions, List):
+        # Use builtin types for runtime checks
+        if isinstance(functions, dict):
             function_List = [functions]
-        else:
+        elif isinstance(functions, list):
             function_List = functions
+        else:
+            raise TypeError("Invalid type for 'functions' field")
 
         for i, function in enumerate(function_List):
 
