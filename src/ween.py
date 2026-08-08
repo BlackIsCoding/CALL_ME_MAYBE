@@ -116,7 +116,9 @@ def get_param_type(param: str, function: FunctionDef) -> str:
     Returns:
         str: The normalized string type of the parameter.
     """
-    param_def: ParameterDef = cast(ParameterDef, function["parameters"][param])
+    param_def: ParameterDef = cast(
+        ParameterDef, function["parameters"][param]
+    )
     return param_def["type"].strip().lower()
 
 
@@ -125,8 +127,12 @@ def param_boolean(
 ) -> tuple[int, bool]:
     """Generates a boolean parameter value based on the model's logits."""
     expected_strings: list[str] = ["false", "true"]
-    expected_tokens: list[int] = [[int(x) for x in qwen.encode(e)[0]][0] for e in expected_strings]
-    logits: list[float] = cast(list[float], qwen.get_logits_from_input_ids(prompt_encoded))
+    expected_tokens: list[int] = [
+        [int(x) for x in qwen.encode(e)[0]][0] for e in expected_strings
+    ]
+    logits: list[float] = cast(
+        list[float], qwen.get_logits_from_input_ids(prompt_encoded)
+    )
 
     # guard indices
     t0, t1 = expected_tokens[0], expected_tokens[1]
@@ -146,9 +152,14 @@ def param_str(
     value: str = ""
 
     for _ in range(30):
-        logits: list[float] = cast(list[float], qwen.get_logits_from_input_ids(prompt_encoded))
+        logits: list[float] = cast(
+            list[float], qwen.get_logits_from_input_ids(prompt_encoded)
+        )
         # avoid selecting the opening quote token again
-        if tokens.get("start_quote") is not None and tokens["start_quote"] < len(logits):
+        if (
+            tokens.get("start_quote") is not None
+            and tokens["start_quote"] < len(logits)
+        ):
             logits[tokens["start_quote"]] = float("-inf")
         best_token: int = int(argmax(logits))
 
@@ -169,14 +180,23 @@ def param_int(
     qwen: Small_LLM_Model, prompt_encoded: list[int], tokens: TokenDict
 ) -> int:
     """Generates an integer parameter value based on the model's logits."""
-    int_vocab: list[int] = list(tokens["digits"])  # copy to avoid mutating original
-    int_vocab.extend([tokens["minus"], tokens["comma"], tokens["end_curly"]])
+    int_vocab: list[int] = list(tokens["digits"])  # copy to avoid mutating
+    int_vocab.extend(
+        [tokens["minus"], tokens["comma"], tokens["end_curly"]]
+    )
 
     value: str = ""
 
     for _ in range(30):
-        logits: list[float] = cast(list[float], qwen.get_logits_from_input_ids(prompt_encoded))
-        best_token: int = max(int_vocab, key=lambda t: (logits[t] if t < len(logits) else float("-inf")))
+        logits: list[float] = cast(
+            list[float], qwen.get_logits_from_input_ids(prompt_encoded)
+        )
+        best_token: int = max(
+            int_vocab,
+            key=lambda t: (
+                logits[t] if t < len(logits) else float("-inf")
+            ),
+        )
 
         if best_token in (tokens["comma"], tokens["end_curly"]):
             break
@@ -201,9 +221,20 @@ def param_float(
     has_decimal: bool = bool(re.search(r"-?\d+\.\d+", user_request))
 
     if has_decimal:
-        float_vocab: list[int] = [*tokens["digits"], tokens["minus"], tokens["dot"], tokens["comma"], tokens["end_curly"]]
+        float_vocab: list[int] = [
+            *tokens["digits"],
+            tokens["minus"],
+            tokens["dot"],
+            tokens["comma"],
+            tokens["end_curly"],
+        ]
     else:
-        float_vocab = [*tokens["digits"], tokens["minus"], tokens["comma"], tokens["end_curly"]]
+        float_vocab = [
+            *tokens["digits"],
+            tokens["minus"],
+            tokens["comma"],
+            tokens["end_curly"],
+        ]
 
     dot_zero: list[int] = [int(x) for x in qwen.encode(".0")[0]]
 
@@ -211,8 +242,15 @@ def param_float(
     value: str = ""
 
     for _ in range(30):
-        logits: list[float] = cast(list[float], qwen.get_logits_from_input_ids(prompt_encoded))
-        best_token: int = max(float_vocab, key=lambda t: (logits[t] if t < len(logits) else float("-inf")))
+        logits: list[float] = cast(
+            list[float], qwen.get_logits_from_input_ids(prompt_encoded)
+        )
+        best_token: int = max(
+            float_vocab,
+            key=lambda t: (
+                logits[t] if t < len(logits) else float("-inf")
+            ),
+        )
 
         decoded: str = cast(str, qwen.decode([best_token]))
         print("best token ->", decoded)
@@ -265,7 +303,9 @@ def params(
         "minus": [int(x) for x in qwen.encode('-')[0]][0],
         "dot": [int(x) for x in qwen.encode('.')[0]][0],
         "slash_quote": [int(x) for x in qwen.encode('\\"')[0]][0],
-        "digits": [[int(x) for x in qwen.encode(str(i))[0]][0] for i in range(10)],
+        "digits": [
+            [int(x) for x in qwen.encode(str(i))[0]][0] for i in range(10)
+        ],
         "start_quote": [int(x) for x in qwen.encode('*"')[0]][0],
     }
 
@@ -293,7 +333,9 @@ def params(
             if index < len(parameters) - 1:
                 prompt_encoded.append(tokens["comma"])
             else:
-                prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
+                prompt_encoded.extend(
+                    [tokens["end_curly"], tokens["end_curly"]]
+                )
 
         elif param_type == "string":
             str_value: str = param_str(qwen, prompt_encoded, tokens)
@@ -302,7 +344,9 @@ def params(
             if index < len(parameters) - 1:
                 prompt_encoded.append(tokens["string_comma"])
             else:
-                prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
+                prompt_encoded.extend(
+                    [tokens["end_curly"], tokens["end_curly"]]
+                )
 
         elif param_type == "integer":
             int_value: int = param_int(qwen, prompt_encoded, tokens)
@@ -311,16 +355,22 @@ def params(
             if index < len(parameters) - 1:
                 prompt_encoded.append(tokens["comma"])
             else:
-                prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
+                prompt_encoded.extend(
+                    [tokens["end_curly"], tokens["end_curly"]]
+                )
 
         elif param_type in ("number", "float"):
-            float_value: float = param_float(qwen, prompt_encoded, tokens, user_request)
+            float_value: float = param_float(
+                qwen, prompt_encoded, tokens, user_request
+            )
             generated_params[param_name] = float_value
 
             if index < len(parameters) - 1:
                 prompt_encoded.append(tokens["comma"])
             else:
-                prompt_encoded.extend([tokens["end_curly"], tokens["end_curly"]])
+                prompt_encoded.extend(
+                    [tokens["end_curly"], tokens["end_curly"]]
+                )
 
     return generated_params
 
@@ -336,7 +386,9 @@ def generate_json(
     prompt_handle(qwen, prompt_encoded, json.dumps(user_request))
 
     # Generate the function name
-    function_tokens: list[int] = function_name(qwen, prompt_encoded, functions)
+    function_tokens: list[int] = function_name(
+        qwen, prompt_encoded, functions
+    )
     function_name_str: str = cast(str, qwen.decode(function_tokens[:-1]))
 
     # Find the corresponding function definition
@@ -350,14 +402,20 @@ def generate_json(
         raise ValueError(f"Unknown function selected: {function_name_str}")
 
     # Generate the parameters
-    generated_params_res: dict[str, Any] | bool = params(qwen, prompt_encoded, function, user_request)
+    generated_params_res: dict[str, Any] | bool = params(
+        qwen, prompt_encoded, function, user_request
+    )
     generated_params: dict[str, Any] = {}
     if not generated_params_res:
         generated_params = {}
     else:
         generated_params = cast(dict[str, Any], generated_params_res)
 
-    return {"prompt": user_request, "name": function_name_str, "parameters": generated_params}
+    return {
+        "prompt": user_request,
+        "name": function_name_str,
+        "parameters": generated_params,
+    }
 
 
 def dump_all(
@@ -380,7 +438,7 @@ def dump_all(
         '"name":"fn_add_numbers",',
         '"parameters":{"a":15,"b":27}} ',
         "Example 2: ",
-        '{"prompt":"Replace every sequence of digits in \'Order 512 ",',
+        '{"prompt":"Replace every sequence of digits in \'Order 512 ',
         "costs 49 dollars' with <NUM>",
         ',"name":"fn_substitute_string_with_regex",',
         '"parameters":{',
@@ -389,7 +447,7 @@ def dump_all(
         '"replacement":"<NUM>"',
         '}} ',
         "Example 3: ",
-        '{"prompt":"Replace every vowel in \'Artificial Intelligence\' ",',
+        '{"prompt":"Replace every vowel in \'Artificial Intelligence\' ',
         '"with *",',
         '"name":"fn_substitute_string_with_regex",',
         '"parameters":{',
@@ -398,7 +456,7 @@ def dump_all(
         '"replacement":"*"',
         '}} ',
         "Example 4: ",
-        '{"prompt":"Replace every occurrence of \'apple\' with \'orange\' ",',
+        '{"prompt":"Replace every occurrence of \'apple\' with \'orange\' ',
         "in 'apple pie and apple juice'",',
         '"name":"fn_substitute_string_with_regex",',
         '"parameters":{',
@@ -411,10 +469,16 @@ def dump_all(
 
     prompt: str = "".join(prompt_lines)
 
-    base_prompt_encoded: list[int] = [int(x) for x in qwen.encode(prompt)[0]]
+    base_prompt_encoded: list[int] = [
+        int(x) for x in qwen.encode(prompt)[0]
+    ]
 
-    prompts_list: list[dict[str, str]] = ([prompts] if isinstance(prompts, dict) else prompts)
-    functions_list: list[FunctionDef] = ([functions] if isinstance(functions, dict) else functions)
+    prompts_list: list[dict[str, str]] = (
+        [prompts] if isinstance(prompts, dict) else prompts
+    )
+    functions_list: list[FunctionDef] = (
+        [functions] if isinstance(functions, dict) else functions
+    )
 
     results: list[GeneratedOutput] = []
 
@@ -425,7 +489,9 @@ def dump_all(
         # Every generation starts from the same base context
         prompt_encoded: list[int] = base_prompt_encoded.copy()
 
-        generated: GeneratedOutput = generate_json(qwen, functions_list, user_request, prompt_encoded)
+        generated: GeneratedOutput = generate_json(
+            qwen, functions_list, user_request, prompt_encoded
+        )
 
         results.append(generated)
 
