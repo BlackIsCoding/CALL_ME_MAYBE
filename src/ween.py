@@ -5,7 +5,6 @@ from llm_sdk import Small_LLM_Model  # type: ignore
 from numpy import argmax
 
 
-# Simple type aliases (replace TypedDict/Protocol runtime definitions to keep mypy quiet)
 ParameterDef = dict[str, Any]
 FunctionDef = dict[str, Any]
 TokenDict = dict[str, Any]
@@ -61,9 +60,7 @@ def function_name(
     function_tokens: list[int] = []
 
     while True:
-        logits: list[float] = cast(
-            list[float], qwen.get_logits_from_input_ids(prompt_encoded)
-        )
+        logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
         chosen_set: set[int] = set()
 
         for enc in encoded_functions:
@@ -76,7 +73,6 @@ def function_name(
         best_score: float = float("-inf")
 
         for token in chosen_ones:
-            # guard against potential short logits vector
             if token >= len(logits):
                 continue
             token_score = float(logits[token])
@@ -86,13 +82,8 @@ def function_name(
 
         remaining: list[list[int]] = []
         for enc in encoded_functions:
-            try:
-                exist: int = enc[position]
-                if exist != best_token:
-                    raise ValueError()
+            if position < len(enc) and enc[position] == best_token:
                 remaining.append(enc)
-            except Exception:
-                pass
 
         encoded_functions = remaining
         prompt_encoded.append(best_token)
@@ -106,7 +97,7 @@ def function_name(
     return function_tokens
 
 
-def get_param_type(param: str, function: FunctionDef) -> str:
+def get_param_type(param: str, function: FunctionDef) -> str | Any:
     """Retrieves and normalizes the type of a specific parameter.
 
     Args:
@@ -116,9 +107,7 @@ def get_param_type(param: str, function: FunctionDef) -> str:
     Returns:
         str: The normalized string type of the parameter.
     """
-    param_def: ParameterDef = cast(
-        ParameterDef, function["parameters"][param]
-    )
+    param_def: ParameterDef = function["parameters"][param]
     return param_def["type"].strip().lower()
 
 
@@ -130,9 +119,7 @@ def param_boolean(
     expected_tokens: list[int] = [
         [int(x) for x in qwen.encode(e)[0]][0] for e in expected_strings
     ]
-    logits: list[float] = cast(
-        list[float], qwen.get_logits_from_input_ids(prompt_encoded)
-    )
+    logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
 
     # guard indices
     t0, t1 = expected_tokens[0], expected_tokens[1]
@@ -152,9 +139,7 @@ def param_str(
     value: str = ""
 
     for _ in range(30):
-        logits: list[float] = cast(
-            list[float], qwen.get_logits_from_input_ids(prompt_encoded)
-        )
+        logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
         # avoid selecting the opening quote token again
         if (
             tokens.get("start_quote") is not None
@@ -163,7 +148,7 @@ def param_str(
             logits[tokens["start_quote"]] = float("-inf")
         best_token: int = int(argmax(logits))
 
-        decoded: str = cast(str, qwen.decode([best_token]))
+        decoded: str = qwen.decode([best_token])
         print("best token ->", decoded)
 
         if decoded.startswith('"'):
@@ -188,9 +173,7 @@ def param_int(
     value: str = ""
 
     for _ in range(30):
-        logits: list[float] = cast(
-            list[float], qwen.get_logits_from_input_ids(prompt_encoded)
-        )
+        logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
         best_token: int = max(
             int_vocab,
             key=lambda t: (
@@ -202,7 +185,7 @@ def param_int(
             break
 
         prompt_encoded.append(best_token)
-        value += cast(str, qwen.decode([best_token]))
+        value += qwen.decode([best_token])
 
     value = value.strip()
     if not value:
@@ -242,9 +225,7 @@ def param_float(
     value: str = ""
 
     for _ in range(30):
-        logits: list[float] = cast(
-            list[float], qwen.get_logits_from_input_ids(prompt_encoded)
-        )
+        logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
         best_token: int = max(
             float_vocab,
             key=lambda t: (
@@ -252,7 +233,7 @@ def param_float(
             ),
         )
 
-        decoded: str = cast(str, qwen.decode([best_token]))
+        decoded: str = qwen.decode([best_token])
         print("best token ->", decoded)
 
         if best_token == tokens["dot"]:
@@ -389,7 +370,7 @@ def generate_json(
     function_tokens: list[int] = function_name(
         qwen, prompt_encoded, functions
     )
-    function_name_str: str = cast(str, qwen.decode(function_tokens[:-1]))
+    function_name_str: str = qwen.decode(function_tokens[:-1])
 
     # Find the corresponding function definition
     function: FunctionDef | None = None
@@ -457,7 +438,7 @@ def dump_all(
         '}} ',
         "Example 4: ",
         '{"prompt":"Replace every occurrence of \'apple\' with \'orange\' ',
-        "in 'apple pie and apple juice'",',
+        "in 'apple pie and apple juice'",
         '"name":"fn_substitute_string_with_regex",',
         '"parameters":{',
         '"source_string":"apple pie and apple juice",',
