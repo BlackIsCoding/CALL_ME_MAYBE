@@ -17,18 +17,6 @@ class Jsontypes(str, Enum):
     number = "number"
 
 
-class PromptDict(TypedDict):
-    """Normalized shape of a single prompt entry."""
-    prompt: str
-
-
-class ParameterDict(TypedDict):
-    """Normalized shape of a single function parameter."""
-    type: str
-
-
-# FunctionDict TypedDict removed; plain dict annotations are used below.
-
 class Parsing(BaseModel):
     """Validate and parse function definitions and user prompts."""
 
