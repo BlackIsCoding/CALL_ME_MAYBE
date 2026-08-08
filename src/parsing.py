@@ -1,11 +1,6 @@
 from typing import Any, TypedDict, cast, List
 from enum import Enum
-
-try:
-    from pydantic import BaseModel
-except ModuleNotFoundError as e:
-    print(f"Module not found: {e.name}")
-    exit(1)
+from pydantic import BaseModel
 
 
 class Jsontypes(str, Enum):
