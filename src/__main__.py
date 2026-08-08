@@ -6,9 +6,6 @@ try:
     from pydantic_core import ErrorDetails
     from src.parsing import Parsing
     from llm_sdk import Small_LLM_Model  # type: ignore
-except (ModuleNotFoundError, NameError, ImportError) as e:
-    print("An error occured during loading the modules !", e)
-    exit(1)
 except Exception as e:
     print("An error occured during loading the modules !", e)
     exit(1)
@@ -16,14 +13,11 @@ except Exception as e:
 
 def error_on_duplicates(pairs: List[Tuple[str, object]]) -> Dict:
     """Detect duplicate keys while loading a JSON object.
-
     Args:
         pairs: A List of (key, value) tuples produced by
             ``json.load`` via ``object_pairs_hook``.
-
     Returns:
         A dictionary containing the parsed key-value pairs.
-
     Raises:
         ValueError: If a duplicate key is found.
     """
@@ -36,7 +30,6 @@ def error_on_duplicates(pairs: List[Tuple[str, object]]) -> Dict:
 
 
 if __name__ == "__main__":
-
     arg_parser: argparse.ArgumentParser = argparse.ArgumentParser()
     arg_parser.add_argument(
         "--functions_definition",
@@ -46,19 +39,16 @@ if __name__ == "__main__":
         "--input", required=True, help="Enter the path of the prompts file")
     arg_parser.add_argument(
         "--output", required=True, help="Enter the path of the output file")
-    arguments = arg_parser.parse_args()
+    arguments: argparse.Namespace = arg_parser.parse_args()
     try:
         with open(arguments.input, 'r') as f:
             prompts: List[Dict] = json.load(
                 f, object_pairs_hook=error_on_duplicates)
-
         with open(arguments.functions_definition, 'r') as f:
             functions: Any = json.load(
                 f, object_pairs_hook=error_on_duplicates)
-
         with open(arguments.output, 'w') as f:
             pass
-
     except FileNotFoundError:
         print("The path provided does not lead to an existing file !")
     except PermissionError:
@@ -76,22 +66,17 @@ if __name__ == "__main__":
             parser: Parsing = Parsing(
                 functions=functions,
                 prompts=prompts)
-
             parser.parse_prompts()
             new_functions: Any = parser.parse_functions_schema()
             parser.validate_functions()
-
         except ValidationError as e:
             err: ErrorDetails = e.errors()[0]
             print(f"Pydantic validation error:\n{err['msg']}")
             exit(1)
-
         except ValueError as e:
             print(f"Parsing error: {e}")
             exit(1)
-
         else:
-
             try:
                 qwen: Small_LLM_Model = Small_LLM_Model()
                 tokens: Dict[str, (int | List)] = {
