@@ -1,3 +1,5 @@
+# Don't forget .gitgnore
+
 DIR = $(CURDIR)
 FUNCTIONS_DEFINITION := $(CURDIR)/data/input/functions_definition.json
 INPUT := $(CURDIR)/data/input/function_calling_tests.json
