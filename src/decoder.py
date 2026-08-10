@@ -1,6 +1,7 @@
 import json
 import re
 from typing import Any, cast
+
 from llm_sdk import Small_LLM_Model  # type: ignore
 from numpy import argmax
 
@@ -17,12 +18,12 @@ def prompt_handle(
     prompt_encoded: list[int],
     user_request: str
 ) -> None:
-    """Handles the prompt generation by appending the user request.
+    """Appends the user's request to the encoded prompt.
 
     Args:
-        qwen (Small_LLM_Model): The LLM model instance.
-        prompt_encoded (list[int]): The list of encoded tokens.
-        user_request (str): The user's prompt request.
+        qwen: The LLM model instance.
+        prompt_encoded: The list of encoded prompt tokens.
+        user_request: The user's prompt request.
     """
     prompt_part: str = '"prompt":' + user_request + ","
     encoded_part: list[int] = [int(x) for x in qwen.encode(prompt_part)[0]]
@@ -34,15 +35,15 @@ def function_name(
     prompt_encoded: list[int],
     functions: list[FunctionDef]
 ) -> list[int]:
-    """Determines the target function name and appends it to the prompt.
+    """Selects a function based on the model's logits.
 
     Args:
-        qwen (Small_LLM_Model): The LLM model instance.
-        prompt_encoded (list[int]): The list of encoded tokens.
-        functions (list[FunctionDef]): A list of allowed function dictionaries.
+        qwen: The LLM model instance.
+        prompt_encoded: The list of encoded prompt tokens.
+        functions: A list of available function definitions.
 
     Returns:
-        list[int]: The token IDs forming the chosen function name.
+        The token IDs forming the selected function name.
     """
     function_name_str: str = '"name":"'
     fn_tokens: list[int] = [int(x) for x in qwen.encode(function_name_str)[0]]
@@ -52,7 +53,7 @@ def function_name(
 
     for f in allowed_functions:
         encoded: list[int] = [int(x) for x in qwen.encode(f)[0]]
-        encoded.append(497)  # sentinel token appended to mark end
+        encoded.append(497)  # sentinel token appended to mark end ','
         if encoded not in encoded_functions:
             encoded_functions.append(encoded)
 
@@ -98,33 +99,43 @@ def function_name(
 
 
 def get_param_type(param: str, function: FunctionDef) -> str | Any:
-    """Retrieves and normalizes the type of a specific parameter.
+    """Retrieves and normalizes the type of a function parameter.
 
     Args:
-        param (str): The name of the parameter.
-        function (FunctionDef): The function definition dictionary.
+        param: The name of the parameter.
+        function: The function definition containing the parameter.
 
     Returns:
-        str: The normalized string type of the parameter.
+        The normalized parameter type.
     """
     param_def: ParameterDef = function["parameters"][param]
     return param_def["type"].strip().lower()
 
 
 def param_boolean(
-    qwen: Small_LLM_Model, prompt_encoded: list[int]
+    qwen: Small_LLM_Model,
+    prompt_encoded: list[int]
 ) -> tuple[int, bool]:
-    """Generates a boolean parameter value based on the model's logits."""
+    """Generates a boolean parameter value using the model's logits.
+
+    Args:
+        qwen: The LLM model instance.
+        prompt_encoded: The list of encoded tokens forming the prompt.
+
+    Returns:
+        A tuple containing the selected token ID and its boolean value.
+    """
     expected_strings: list[str] = ["false", "true"]
     expected_tokens: list[int] = [
-        [int(x) for x in qwen.encode(e)[0]][0] for e in expected_strings
+        [int(x) for x in qwen.encode(e)[0]][0]
+        for e in expected_strings
     ]
     logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
 
     # guard indices
     t0, t1 = expected_tokens[0], expected_tokens[1]
-    v0 = logits[t0] if t0 < len(logits) else float("-inf")
-    v1 = logits[t1] if t1 < len(logits) else float("-inf")
+    v0 = logits[t0]
+    v1 = logits[t1]
 
     if v0 > v1:
         return t0, False
@@ -132,24 +143,36 @@ def param_boolean(
 
 
 def param_str(
-    qwen: Small_LLM_Model, prompt_encoded: list[int], tokens: TokenDict
+    qwen: Small_LLM_Model,
+    prompt_encoded: list[int],
+    tokens: TokenDict
 ) -> str:
-    """Generates a string parameter value based on the model's logits."""
+    """Generates a string parameter value using the model's logits.
+
+    Args:
+        qwen: The LLM model instance.
+        prompt_encoded: The list of encoded prompt tokens.
+        tokens: Token IDs used to control string generation.
+
+    Returns:
+        The generated string parameter value.
+    """
     prompt_encoded.append(tokens["quote"])  # opening quote
     value: str = ""
 
     for _ in range(20):
         logits: list[float] = qwen.get_logits_from_input_ids(prompt_encoded)
+
         # avoid selecting the opening quote token again
         if (
             tokens.get("start_quote") is not None
             and tokens["start_quote"] < len(logits)
         ):
             logits[tokens["start_quote"]] = float("-inf")
+
         best_token: int = int(argmax(logits))
 
         decoded: str = qwen.decode([best_token])
-        print("best token ->", decoded)
 
         if decoded.startswith('"'):
             prompt_encoded.append(tokens["quote"])  # closing quote
@@ -162,9 +185,23 @@ def param_str(
 
 
 def param_int(
-    qwen: Small_LLM_Model, prompt_encoded: list[int], tokens: TokenDict
+    qwen: Small_LLM_Model,
+    prompt_encoded: list[int],
+    tokens: TokenDict
 ) -> int:
-    """Generates an integer parameter value based on the model's logits."""
+    """Generates an integer parameter value using the model's logits.
+
+    Args:
+        qwen: The LLM model instance.
+        prompt_encoded: The list of encoded prompt tokens.
+        tokens: Token IDs used to restrict integer generation.
+
+    Returns:
+        The generated integer parameter value.
+
+    Raises:
+        ValueError: If no digits are generated for the parameter.
+    """
     int_vocab: list[int] = list(tokens["digits"])  # copy to avoid mutating
     int_vocab.extend(
         [tokens["minus"], tokens["comma"], tokens["end_curly"]]
@@ -200,24 +237,37 @@ def param_float(
     tokens: TokenDict,
     user_request: str
 ) -> float:
-    """Generates a float parameter value based on the model's logits."""
+    """Generates a floating-point parameter value from the model's logits.
+
+    Args:
+        qwen: The LLM model instance.
+        prompt_encoded: The list of encoded prompt tokens.
+        tokens: Token IDs used to restrict float generation.
+        user_request: The user's original request.
+
+    Returns:
+        The generated floating-point parameter value.
+
+    Raises:
+        ValueError: If no digits are generated for the parameter.
+    """
     has_decimal: bool = bool(re.search(r"-?\d+\.\d+", user_request))
 
     if has_decimal:
         float_vocab: list[int] = [
-            *tokens["digits"],
             tokens["minus"],
             tokens["dot"],
             tokens["comma"],
             tokens["end_curly"],
         ]
+        float_vocab.extend(tokens["digits"])
     else:
         float_vocab = [
-            *tokens["digits"],
             tokens["minus"],
             tokens["comma"],
             tokens["end_curly"],
         ]
+        float_vocab.extend(tokens["digits"])
 
     dot_zero: list[int] = [int(x) for x in qwen.encode(".0")[0]]
 
@@ -234,7 +284,6 @@ def param_float(
         )
 
         decoded: str = qwen.decode([best_token])
-        print("best token ->", decoded)
 
         if best_token == tokens["dot"]:
             seen_dot = True
@@ -256,7 +305,14 @@ def param_float(
 
 
 def check_params_exist(function: FunctionDef) -> bool:
-    """Checks whether the specified function possesses any parameters."""
+    """Checks whether the specified function has parameters.
+
+    Args:
+        function: The function definition to inspect.
+
+    Returns:
+        True if the function contains parameters, otherwise False.
+    """
     if not function.get("parameters"):
         return False
     return True
@@ -268,24 +324,36 @@ def params(
     function: FunctionDef,
     user_request: str
 ) -> dict[str, Any] | bool:
-    """Evaluates and generates all required parameters for a function."""
+    """Generates all required parameters for the selected function.
+
+    Args:
+        qwen: The LLM model instance.
+        prompt_encoded: The list of encoded prompt tokens.
+        function: The selected function definition.
+        user_request: The user's original request.
+
+    Returns:
+        A dictionary containing the generated parameters, or False if
+        the function has no parameters.
+    """
     if not check_params_exist(function):
         params_str: str = '"parameters": {}'
         prompt_encoded.extend([int(x) for x in qwen.encode(params_str)[0]])
         return False
 
     tokens: TokenDict = {
-        "quote_points": [int(x) for x in qwen.encode('\":')[0]],
-        "comma": [int(x) for x in qwen.encode(', ')[0]][0],
-        "end_curly": [int(x) for x in qwen.encode('}')[0]][0],
+        "quote_points": [int(x) for x in qwen.encode('":')[0]],
+        "comma": [int(x) for x in qwen.encode(", ")[0]][0],
+        "end_curly": [int(x) for x in qwen.encode("}")[0]][0],
         "quote": [int(x) for x in qwen.encode('"')[0]][0],
         "string_comma": [int(x) for x in qwen.encode('",')[0]][0],
-        "string_curly": [int(x) for x in qwen.encode('\"}')[0]][0],
-        "minus": [int(x) for x in qwen.encode('-')[0]][0],
-        "dot": [int(x) for x in qwen.encode('.')[0]][0],
+        "string_curly": [int(x) for x in qwen.encode('"}')[0]][0],
+        "minus": [int(x) for x in qwen.encode("-")[0]][0],
+        "dot": [int(x) for x in qwen.encode(".")[0]][0],
         "slash_quote": [int(x) for x in qwen.encode('\\"')[0]][0],
         "digits": [
-            [int(x) for x in qwen.encode(str(i))[0]][0] for i in range(10)
+            [int(x) for x in qwen.encode(str(i))[0]][0]
+            for i in range(10)
         ],
         "start_quote": [int(x) for x in qwen.encode('*"')[0]][0],
     }
@@ -296,11 +364,14 @@ def params(
     prompt_encoded.extend([int(x) for x in qwen.encode(params_prefix)[0]])
 
     parameters: list[str] = list(function.get("parameters", {}).keys())
+
     for index, param_name in enumerate(parameters):
         if index != 0:
             prompt_encoded.append(tokens["quote"])
 
-        param_tokens: list[int] = [int(x) for x in qwen.encode(param_name)[0]]
+        param_tokens: list[int] = [
+            int(x) for x in qwen.encode(param_name)[0]
+        ]
         prompt_encoded.extend(param_tokens)
         prompt_encoded.extend(tokens["quote_points"])
 
@@ -362,7 +433,21 @@ def generate_json(
     user_request: str,
     prompt_encoded: list[int]
 ) -> GeneratedOutput:
-    """Orchestrates generation to produce a structured JSON object."""
+    """Generates a structured JSON object for the user's request.
+
+    Args:
+        qwen: The LLM model instance.
+        functions: The list of available function definitions.
+        user_request: The user's request to process.
+        prompt_encoded: The encoded prompt context.
+
+    Returns:
+        A JSON-compatible dictionary containing the prompt, selected
+        function name, and generated parameters.
+
+    Raises:
+        ValueError: If the selected function does not exist.
+    """
     # Generate the "prompt" field
     prompt_handle(qwen, prompt_encoded, json.dumps(user_request))
 
@@ -374,6 +459,7 @@ def generate_json(
 
     # Find the corresponding function definition
     function: FunctionDef | None = None
+
     for f in functions:
         if f["name"] == function_name_str:
             function = f
@@ -386,11 +472,16 @@ def generate_json(
     generated_params_res: dict[str, Any] | bool = params(
         qwen, prompt_encoded, function, user_request
     )
+
     generated_params: dict[str, Any] = {}
+
     if not generated_params_res:
         generated_params = {}
     else:
-        generated_params = cast(dict[str, Any], generated_params_res)
+        generated_params = cast(
+            dict[str, Any],
+            generated_params_res
+        )
 
     return {
         "prompt": user_request,
@@ -405,7 +496,14 @@ def dump_all(
     prompts: list[dict[str, str]] | dict[str, str],
     arguments: DumpArguments
 ) -> None:
-    """Processes multiple prompts with the LLM and dumps output to a file."""
+    """Generates outputs for all prompts and writes them to a file.
+
+    Args:
+        qwen: The LLM model instance.
+        functions: The available function definitions.
+        prompts: The prompts to process.
+        arguments: Command-line arguments containing the output path.
+    """
     prompt_lines: list[str] = [
         "Generate a valid JSON object with exactly three keys: prompt, ",
         "name (the chosen function), and parameters. ",
@@ -457,6 +555,7 @@ def dump_all(
     prompts_list: list[dict[str, str]] = (
         [prompts] if isinstance(prompts, dict) else prompts
     )
+
     functions_list: list[FunctionDef] = (
         [functions] if isinstance(functions, dict) else functions
     )
@@ -471,7 +570,10 @@ def dump_all(
         prompt_encoded: list[int] = base_prompt_encoded.copy()
 
         generated: GeneratedOutput = generate_json(
-            qwen, functions_list, user_request, prompt_encoded
+            qwen,
+            functions_list,
+            user_request,
+            prompt_encoded,
         )
 
         results.append(generated)

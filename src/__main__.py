@@ -6,6 +6,7 @@ try:
     from pydantic_core import ErrorDetails
     from src.parsing import Parsing
     from llm_sdk import Small_LLM_Model  # type: ignore
+    from pathlib import Path
 except Exception as e:
     print("An error occured during loading the modules !", e)
     exit(1)
@@ -47,6 +48,8 @@ if __name__ == "__main__":
         with open(arguments.functions_definition, 'r') as f:
             functions: Any = json.load(
                 f, object_pairs_hook=error_on_duplicates)
+        output_path = Path(arguments.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(arguments.output, 'w') as f:
             pass
     except FileNotFoundError:
@@ -90,7 +93,7 @@ if __name__ == "__main__":
                 print("Making a Model object failed !", e)
                 exit(1)
             else:
-                from src.ween import dump_all
+                from src.decoder import dump_all
                 from time import perf_counter
                 start: float = perf_counter()
                 dump_all(qwen, new_functions, prompts, arguments)
